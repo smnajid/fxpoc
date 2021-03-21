@@ -12,5 +12,5 @@ import lombok.NoArgsConstructor;
 public class RequestForQuote {
     private String rfqId;
     private String symbol;
-    private String status;
+    private RfqStatus status;
 }

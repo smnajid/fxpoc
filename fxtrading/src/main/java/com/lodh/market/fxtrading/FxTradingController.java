@@ -14,6 +14,7 @@ import org.springframework.data.mongodb.core.ReactiveMongoOperations;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,6 +29,8 @@ import reactor.util.function.Tuple2;
 import java.util.Objects;
 import java.util.UUID;
 
+import static com.lodh.market.domain.RfqStatus.COMPLETED;
+import static com.lodh.market.domain.RfqStatus.PENDING;
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 @RestController
@@ -39,17 +42,14 @@ public class FxTradingController {
 
     private final QuotesRepository quotesRepository;
     private final ReactiveMongoTemplate reactiveMongoTemplate;
-    private final ReactiveMongoOperations reactiveMongoOperations;
 
 
     public FxTradingController(
             QuotesRepository quotesRepository,
-            ReactiveMongoTemplate reactiveMongoTemplate,
-            ReactiveMongoOperations reactiveMongoOperations
+            ReactiveMongoTemplate reactiveMongoTemplate
     ) {
         this.quotesRepository = quotesRepository;
         this.reactiveMongoTemplate = reactiveMongoTemplate;
-        this.reactiveMongoOperations = reactiveMongoOperations;
     }
 
     @GetMapping(path = "quotes/{symbol}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -57,16 +57,22 @@ public class FxTradingController {
         log.info("Processing quotes request ...");
         final String rfqId = UUID.randomUUID().toString();
 
-        RequestForQuote requestForQuote = new RequestForQuote(rfqId, symbol, "CREATED");
+        RequestForQuote requestForQuote = new RequestForQuote(rfqId, symbol, PENDING);
 
-        Flux<Quote> quotes = ftmClient.get().uri("/ftm/quotes/{symbol}/{rfqId}", symbol, rfqId)
+        Mono<Void> startRfq = ftmClient.post()
+                .uri("/ftm/rfq")
+//                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .body(Mono.just(requestForQuote), RequestForQuote.class)
                 .retrieve()
-                .bodyToFlux(Quote.class)
-                .flatMap(quotesRepository::save);
+                .bodyToMono(Void.class);
+
+//        Flux<Quote> quotes = ftmClient.get().uri("/ftm/quotes/{symbol}/{rfqId}", symbol, rfqId)
+//                .retrieve()
+//                .bodyToFlux(Quote.class)
+//                .flatMap(quotesRepository::save);
 
         reactiveMongoTemplate.save(requestForQuote)
-                .thenMany(quotes)
-                .then(reactiveMongoTemplate.save(new RequestForQuote(rfqId, symbol, "COMPLETED")))
+                .then(startRfq)
                 .subscribe();
 
         Flux<RequestForQuote> rfqFromDb = Mono.just(new RequestForQuote())
@@ -91,7 +97,7 @@ public class FxTradingController {
                 quoteFromDb,
                 rfqFromDb,
                 QuoteWithRfq::new)
-                .takeUntil(quoteRfq -> Objects.equals(quoteRfq.getRfq().getStatus(), "COMPLETED"))
+                .takeUntil(quoteRfq -> Objects.equals(quoteRfq.getRfq().getStatus(), COMPLETED))
                 .map(QuoteWithRfq::getQuote);
     }
 
