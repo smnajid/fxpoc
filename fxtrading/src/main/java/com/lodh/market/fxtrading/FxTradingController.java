@@ -3,6 +3,9 @@ package com.lodh.market.fxtrading;
 import com.lodh.market.domain.Quote;
 import com.lodh.market.domain.RequestForQuote;
 import com.mongodb.reactivestreams.client.MongoCollection;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.springframework.data.mongodb.core.ChangeStreamEvent;
@@ -20,7 +23,9 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple2;
 
+import java.util.Objects;
 import java.util.UUID;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -52,7 +57,7 @@ public class FxTradingController {
         log.info("Processing quotes request ...");
         final String rfqId = UUID.randomUUID().toString();
 
-        RequestForQuote requestForQuote = new RequestForQuote(rfqId,symbol,"CREATED");
+        RequestForQuote requestForQuote = new RequestForQuote(rfqId, symbol, "CREATED");
 
         Flux<Quote> quotes = ftmClient.get().uri("/ftm/quotes/{symbol}/{rfqId}", symbol, rfqId)
                 .retrieve()
@@ -61,24 +66,39 @@ public class FxTradingController {
 
         reactiveMongoTemplate.save(requestForQuote)
                 .thenMany(quotes)
-                .then(reactiveMongoTemplate.save(new RequestForQuote(rfqId,symbol,"COMPLETED")))
+                .then(reactiveMongoTemplate.save(new RequestForQuote(rfqId, symbol, "COMPLETED")))
                 .subscribe();
 
-        Disposable disposable = reactiveMongoTemplate.changeStream(RequestForQuote.class)
-                .watchCollection(RequestForQuote.class)
-                .filter(where("rfqId").is(rfqId).and("status").is("COMPLETED"))
-                .listen()
-                .log()
-                .take(1)
-                .subscribe();
+        Flux<RequestForQuote> rfqFromDb = Mono.just(new RequestForQuote())
+                .concatWith(
+                        reactiveMongoTemplate.changeStream(RequestForQuote.class)
+                                .watchCollection(RequestForQuote.class)
+                                .filter(where("rfqId").is(rfqId))
+                                .listen()
+                                .log()
+                                .map(ChangeStreamEvent::getBody)
+                );
 
-        return reactiveMongoTemplate.changeStream(Quote.class)
+
+        Flux<Quote> quoteFromDb = reactiveMongoTemplate.changeStream(Quote.class)
                 .watchCollection(Quote.class)
                 .filter(where("rfqId").is(rfqId))
                 .listen()
                 .log()
-                .map(ChangeStreamEvent::getBody)
-                .takeUntil(it -> disposable.isDisposed());
+                .map(ChangeStreamEvent::getBody);
 
+        return Flux.combineLatest(
+                quoteFromDb,
+                rfqFromDb,
+                QuoteWithRfq::new)
+                .takeUntil(quoteRfq -> Objects.equals(quoteRfq.getRfq().getStatus(), "COMPLETED"))
+                .map(QuoteWithRfq::getQuote);
+    }
+
+    @Data
+    @AllArgsConstructor
+    class QuoteWithRfq {
+        private final Quote quote;
+        private final RequestForQuote rfq;
     }
 }
