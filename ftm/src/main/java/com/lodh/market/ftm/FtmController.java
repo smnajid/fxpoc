@@ -5,7 +5,10 @@ import com.lodh.market.domain.RequestForQuote;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -25,17 +28,6 @@ public class FtmController {
 
     public static final int SIZE = 10;
     Random r = new Random();
-
-    @GetMapping(path = "quotes/{symbol}/{rfqId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<Quote> getQuoteStream(@PathVariable String symbol, @PathVariable String rfqId) {
-
-        return Flux.interval(Duration.ofSeconds(1))
-                .map(quoteId -> buildQuote(symbol, rfqId, quoteId)
-                )
-                .log()
-                .take(Duration.ofSeconds(SIZE));
-
-    }
 
     @PostMapping(path = "rfq")
     public Mono<Void> startRfq(@RequestBody RequestForQuote rfq) {

@@ -2,29 +2,19 @@ package com.lodh.market.fxtrading;
 
 import com.lodh.market.domain.Quote;
 import com.lodh.market.domain.RequestForQuote;
-import com.mongodb.reactivestreams.client.MongoCollection;
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.bson.Document;
 import org.springframework.data.mongodb.core.ChangeStreamEvent;
-import org.springframework.data.mongodb.core.ChangeStreamOptions;
-import org.springframework.data.mongodb.core.ReactiveMongoOperations;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.util.function.Tuple2;
 
 import java.util.Objects;
 import java.util.UUID;
@@ -65,11 +55,6 @@ public class FxTradingController {
                 .body(Mono.just(requestForQuote), RequestForQuote.class)
                 .retrieve()
                 .bodyToMono(Void.class);
-
-//        Flux<Quote> quotes = ftmClient.get().uri("/ftm/quotes/{symbol}/{rfqId}", symbol, rfqId)
-//                .retrieve()
-//                .bodyToFlux(Quote.class)
-//                .flatMap(quotesRepository::save);
 
         reactiveMongoTemplate.save(requestForQuote)
                 .then(startRfq)
