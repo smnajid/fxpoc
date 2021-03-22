@@ -85,6 +85,8 @@ public class FxTradingController {
                                 .map(ChangeStreamEvent::getBody)
                 );
 
+        reactiveMongoTemplate.changeStream()
+
 
         Flux<Quote> quoteFromDb = reactiveMongoTemplate.changeStream(Quote.class)
                 .watchCollection(Quote.class)
@@ -97,7 +99,7 @@ public class FxTradingController {
                 quoteFromDb,
                 rfqFromDb,
                 QuoteWithRfq::new)
-                .takeUntil(quoteRfq -> Objects.equals(quoteRfq.getRfq().getStatus(), COMPLETED))
+                .takeWhile(quoteRfq -> !Objects.equals(quoteRfq.getRfq().getStatus(), COMPLETED))
                 .map(QuoteWithRfq::getQuote);
     }
 

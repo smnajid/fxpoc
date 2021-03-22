@@ -47,9 +47,9 @@ public class FtmController {
 
         Flux<Void> sendTenQuotes = Flux.interval(Duration.ofSeconds(1))
                 .map(quoteId -> buildQuote(symbol, rfqId, quoteId))
-                .flatMapSequential(this::replyWithQuote)
+                .take(SIZE)
                 .log()
-                .take(Duration.ofSeconds(SIZE));
+                .flatMapSequential(this::replyWithQuote);
 
         return replyWithRfq(rfq)
                 .thenMany(sendTenQuotes)
