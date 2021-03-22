@@ -85,8 +85,6 @@ public class FxTradingController {
                                 .map(ChangeStreamEvent::getBody)
                 );
 
-        reactiveMongoTemplate.changeStream()
-
 
         Flux<Quote> quoteFromDb = reactiveMongoTemplate.changeStream(Quote.class)
                 .watchCollection(Quote.class)
